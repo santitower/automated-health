@@ -183,6 +183,15 @@ h2,h3,p { margin-top:0; }
 .json-preview summary { padding:11px 12px; color:#c1d2c3; font-size:9px; font-weight:800; cursor:pointer; }
 .json-preview pre { max-height:260px; overflow:auto; margin:0; padding:12px; border-top:1px solid #42644b; color:#dbe8dc; background:#11331f; font-family:var(--font-geist-mono),monospace; font-size:8px; line-height:1.55; white-space:pre-wrap; word-break:break-word; }
 .retailer-card>small { color:#9fb5a3; font-size:9px; text-align:center; }
+.instacart-connect { display:grid; gap:8px; padding-top:16px; border-top:1px solid #355b40; }
+.instacart-connect .copy-handoff { width:100%; padding:12px; border:0; border-radius:11px; color:#284530; background:#d9e5da; font-size:10px; font-weight:800; cursor:pointer; }
+.instacart-connect .copy-handoff:disabled { color:#677569; cursor:not-allowed; }
+.store-picker { display:grid; gap:6px; font-size:11px; color:#b7c9ba; }
+.store-picker select { padding:10px; border-radius:10px; border:1px solid #355b40; background:#0f2417; color:#e7f1e9; font-size:12px; }
+.instacart-error { margin:0; color:#f0b0a4; font-size:11px; line-height:1.5; }
+.instacart-results { display:grid; gap:6px; margin:0; padding:0; list-style:none; font-size:11px; max-height:160px; overflow-y:auto; }
+.instacart-results li.added { color:#cfe6d0; }
+.instacart-results li.skipped { color:#e2c682; }
 .progress-grid { display:grid; grid-template-columns:1.5fr 1fr; gap:22px; margin-top:34px; }
 .progress-chart,.consistency-card { padding:27px; border:1px solid var(--line); border-radius:21px; background:white; }
 .progress-kpis { display:flex; gap:50px; margin:23px 0 26px; }

@@ -11,6 +11,7 @@ import {
   generateMealPlan,
   goalLabel,
   validatePlan,
+  type GroceryHandoff,
   type Meal,
   type PlanDay,
   type Profile,
@@ -22,6 +23,14 @@ import type { AppUser, PersistedAppState } from "../lib/app-state";
 
 type Page = "today" | "plan" | "groceries" | "progress";
 type Stage = "onboarding" | "review" | "app";
+
+type InstacartStore = { href: string; name: string };
+type InstacartResult = { query: string; added: boolean; matchedName?: string; reason?: string };
+
+// Local companion agent (see the instacart-agent repo). Runs on the same
+// machine, next to a real logged-in Chrome — never a hosted/shared service.
+const INSTACART_AGENT_URL = process.env.NEXT_PUBLIC_INSTACART_AGENT_URL ?? "http://localhost:4545";
+
 export default function NutriPlanApp({ initialState, user, persistenceEnabled = false, persistenceWarning }: { initialState: PersistedAppState; user: AppUser | null; persistenceEnabled?: boolean; persistenceWarning?: string }) {
   const [stage, setStage] = useState<Stage>(initialState.stage);
   const [page, setPage] = useState<Page>("today");
@@ -36,6 +45,11 @@ export default function NutriPlanApp({ initialState, user, persistenceEnabled = 
   const [removedGroceries, setRemovedGroceries] = useState<string[]>(initialState.removedGroceries);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
   const [persistence, setPersistence] = useState<Persistence>(persistenceWarning ? { state: "error", message: persistenceWarning } : { state: "idle" });
+  const [instacartStores, setInstacartStores] = useState<InstacartStore[] | null>(null);
+  const [selectedStore, setSelectedStore] = useState("");
+  const [instacartStatus, setInstacartStatus] = useState<"idle" | "loading-stores" | "adding" | "done" | "error">("idle");
+  const [instacartError, setInstacartError] = useState("");
+  const [instacartResults, setInstacartResults] = useState<InstacartResult[]>([]);
 
   async function finishOnboarding(nextProfile: Profile) {
     const nextTargets = calculateTargets(nextProfile);
@@ -197,6 +211,47 @@ export default function NutriPlanApp({ initialState, user, persistenceEnabled = 
     URL.revokeObjectURL(url);
   }
 
+  async function loadInstacartStores() {
+    setInstacartStatus("loading-stores");
+    setInstacartError("");
+    try {
+      const res = await fetch(`${INSTACART_AGENT_URL}/stores`);
+      if (!res.ok) throw new Error(`Agent responded ${res.status}`);
+      const data = await res.json();
+      setInstacartStores(data.stores);
+      setInstacartStatus("idle");
+    } catch {
+      setInstacartStatus("error");
+      setInstacartError("Could not reach the Instacart agent. Is it running on this machine (npm run serve in instacart-agent)?");
+    }
+  }
+
+  // Package overage is allowed by design (see quantityPolicy in the handoff
+  // schema), so one retail unit per item satisfies the "minimum required" —
+  // there's no way to ask Instacart's cart for an exact weight/volume.
+  async function sendGroceriesToInstacart(handoffItems: GroceryHandoff["items"]) {
+    if (!selectedStore) return;
+    setInstacartStatus("adding");
+    setInstacartError("");
+    try {
+      const res = await fetch(`${INSTACART_AGENT_URL}/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storeHref: selectedStore,
+          items: handoffItems.map((item) => ({ query: item.name, quantity: 1 })),
+        }),
+      });
+      if (!res.ok) throw new Error(`Agent responded ${res.status}`);
+      const data = await res.json();
+      setInstacartResults(data.results);
+      setInstacartStatus("done");
+    } catch {
+      setInstacartStatus("error");
+      setInstacartError("Could not reach the Instacart agent. Is it running on this machine (npm run serve in instacart-agent)?");
+    }
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -259,7 +314,51 @@ export default function NutriPlanApp({ initialState, user, persistenceEnabled = 
                   })}</article>;
                 })}
               </div>
-              <aside className="retailer-card"><span className="retailer-logo">{includedGroceryCount}</span><div><span className="eyebrow">AI SHOPPING HANDOFF</span><h2>{includedGroceryCount === 0 ? "Nothing left to buy" : `${includedGroceryCount} items ready to match`}</h2><p>The payload excludes every removed item and preserves numeric minimums for future product and package matching.</p></div><div className="readiness"><span>Dietary constraints</span><b>Applied</b><span>Minimum coverage</span><b>Required</b><span>Removed items</span><b>{removedGroceries.length}</b><span>Value optimization</span><b>Requested</b><span>Instacart connection</span><b className="waiting">Next</b></div><div className="handoff-actions"><button className="copy-handoff" onClick={copyGroceryHandoff}>{copyStatus === "copied" ? "Copied JSON ✓" : "Copy AI handoff JSON"}</button><button className="download-handoff" onClick={downloadGroceryHandoff}>Download .json</button></div><p className={`copy-status ${copyStatus}`} aria-live="polite">{copyStatus === "error" ? "Clipboard unavailable—use the download instead." : copyStatus === "copied" ? "Ready to paste into an AI shopping workflow." : ""}</p><details className="json-preview"><summary>Preview handoff payload</summary><pre>{groceryHandoffJson}</pre></details><small>No store search, cart change, or purchase happens in this version.</small></aside>
+              <aside className="retailer-card">
+                <span className="retailer-logo">{includedGroceryCount}</span>
+                <div><span className="eyebrow">AI SHOPPING HANDOFF</span><h2>{includedGroceryCount === 0 ? "Nothing left to buy" : `${includedGroceryCount} items ready to match`}</h2><p>The payload excludes every removed item and preserves numeric minimums for future product and package matching.</p></div>
+                <div className="readiness"><span>Dietary constraints</span><b>Applied</b><span>Minimum coverage</span><b>Required</b><span>Removed items</span><b>{removedGroceries.length}</b><span>Value optimization</span><b>Requested</b><span>Instacart connection</span><b className={instacartStatus === "done" ? "" : "waiting"}>{instacartStatus === "done" ? "Done" : "Next"}</b></div>
+                <div className="handoff-actions"><button className="copy-handoff" onClick={copyGroceryHandoff}>{copyStatus === "copied" ? "Copied JSON ✓" : "Copy AI handoff JSON"}</button><button className="download-handoff" onClick={downloadGroceryHandoff}>Download .json</button></div>
+                <p className={`copy-status ${copyStatus}`} aria-live="polite">{copyStatus === "error" ? "Clipboard unavailable—use the download instead." : copyStatus === "copied" ? "Ready to paste into an AI shopping workflow." : ""}</p>
+                <details className="json-preview"><summary>Preview handoff payload</summary><pre>{groceryHandoffJson}</pre></details>
+
+                <div className="instacart-connect">
+                  {!instacartStores && (
+                    <button className="copy-handoff" onClick={loadInstacartStores} disabled={instacartStatus === "loading-stores"}>
+                      {instacartStatus === "loading-stores" ? "Finding stores…" : "Connect Instacart agent"}
+                    </button>
+                  )}
+
+                  {instacartStores && (
+                    <>
+                      <label className="store-picker">
+                        <span>Store</span>
+                        <select value={selectedStore} onChange={(event) => setSelectedStore(event.target.value)}>
+                          <option value="">Choose a store…</option>
+                          {instacartStores.map((store) => <option key={store.href} value={store.href}>{store.name}</option>)}
+                        </select>
+                      </label>
+                      <button className="copy-handoff" onClick={() => sendGroceriesToInstacart(groceryHandoff.items)} disabled={!selectedStore || instacartStatus === "adding"}>
+                        {instacartStatus === "adding" ? "Adding items…" : `Add ${includedGroceryCount} items to cart`}
+                      </button>
+                    </>
+                  )}
+
+                  {instacartStatus === "error" && <p className="instacart-error">{instacartError}</p>}
+
+                  {instacartResults.length > 0 && (
+                    <ul className="instacart-results">
+                      {instacartResults.map((result) => (
+                        <li key={result.query} className={result.added ? "added" : "skipped"}>
+                          {result.added ? `✓ ${result.matchedName ?? result.query}` : `✗ ${result.query}${result.reason ? ` (${result.reason})` : ""}`}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <small>Instacart connection runs via a local agent on your own machine — see the instacart-agent repo. It never checks out for you.</small>
+              </aside>
             </div>
           </section>
         )}

@@ -38,3 +38,7 @@ The checked-in Supabase migration is the deployable source for the initial schem
 ## Deploy
 
 Import this repository into Vercel and push the main branch to deploy the anonymous experience. To enable accounts, add the same two environment variables and update Supabase's Site URL and redirect allow-list to the production domain.
+
+## Instacart integration
+
+The grocery list page's "Connect Instacart agent" button talks to a local companion agent (the `instacart-agent` repo, run with `npm run serve`) on `localhost:4545`, on your own machine, next to a Chrome window you're logged into Instacart with. It's not part of this app's server and isn't deployed — it only runs while you're using the app yourself, and it never automates checkout. Override its address with `NEXT_PUBLIC_INSTACART_AGENT_URL` if you're running it on a different port.
