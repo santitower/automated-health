@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Onboarding from "./onboarding";
+import InstacartAgentPanel from "./instacart-agent-panel";
 import {
   budgetLabel,
   buildGroceryHandoff,
@@ -246,7 +247,7 @@ export default function NutriPlanApp({ initialState, user, persistenceEnabled = 
                   })}</article>;
                 })}
               </div>
-              <aside className="retailer-card"><span className="retailer-logo">{includedGroceryCount}</span><div><span className="eyebrow">AI SHOPPING HANDOFF</span><h2>{includedGroceryCount === 0 ? "Nothing left to buy" : `${includedGroceryCount} items ready to match`}</h2><p>The payload excludes every removed item and preserves numeric minimums for future product and package matching.</p></div><div className="readiness"><span>Dietary constraints</span><b>Applied</b><span>Minimum coverage</span><b>Required</b><span>Removed items</span><b>{removedGroceries.length}</b><span>Value optimization</span><b>Requested</b><span>Instacart connection</span><b className="waiting">Next</b></div><div className="handoff-actions"><button className="copy-handoff" onClick={copyGroceryHandoff}>{copyStatus === "copied" ? "Copied JSON ✓" : "Copy AI handoff JSON"}</button><button className="download-handoff" onClick={downloadGroceryHandoff}>Download .json</button></div><p className={`copy-status ${copyStatus}`} aria-live="polite">{copyStatus === "error" ? "Clipboard unavailable—use the download instead." : copyStatus === "copied" ? "Ready to paste into an AI shopping workflow." : ""}</p><details className="json-preview"><summary>Preview handoff payload</summary><pre>{groceryHandoffJson}</pre></details><small>No store search, cart change, or purchase happens in this version.</small></aside>
+              <aside className="retailer-card"><span className="retailer-logo">{includedGroceryCount}</span><div><span className="eyebrow">CART READY</span><h2>{includedGroceryCount === 0 ? "Nothing left to buy" : `${includedGroceryCount} items ready to match`}</h2><p>The local Playwright agent uses this reviewed list, opens your own Instacart Chrome, and stops at the cart for final approval.</p></div><div className="readiness"><span>Dietary constraints</span><b>Applied</b><span>Minimum coverage</span><b>Required</b><span>Removed items</span><b>{removedGroceries.length}</b><span>Checkout</span><b className="waiting">You approve</b></div><InstacartAgentPanel items={groceryHandoff.items} /><details className="handoff-tools"><summary>Developer handoff tools</summary><div className="handoff-actions"><button className="copy-handoff" onClick={copyGroceryHandoff}>{copyStatus === "copied" ? "Copied JSON ✓" : "Copy JSON"}</button><button className="download-handoff" onClick={downloadGroceryHandoff}>Download .json</button></div><p className={`copy-status ${copyStatus}`} aria-live="polite">{copyStatus === "error" ? "Clipboard unavailable—use the download instead." : copyStatus === "copied" ? "Handoff JSON copied." : ""}</p><details className="json-preview"><summary>Preview payload</summary><pre>{groceryHandoffJson}</pre></details></details></aside>
             </div>
           </section>
         )}

@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/instacart-agent/node_modules
 /.pnp
 .pnp.*
 .yarn/*
