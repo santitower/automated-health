@@ -1,6 +1,6 @@
 # NutriPlan Instacart agent
 
-This local companion uses Playwright to add an approved NutriPlan grocery list to the user’s own Instacart cart. It launches a visible, dedicated Google Chrome profile, remembers the user’s Instacart login, and stops on the cart page for review. It never submits checkout or payment.
+This local companion uses Playwright to add an approved NutriPlan grocery list to the user’s own Instacart cart. It launches a visible, dedicated Chromium profile, remembers the user’s Instacart login, and stops on the cart page for review. It never submits checkout or payment.
 
 This companion was integrated from [cmedipally7/instacart-agent](https://github.com/cmedipally7/instacart-agent) and adapted for NutriPlan's authenticated, persistent application. The local server, validation, origin restrictions, installers, tests, and cart-review safeguards are maintained here.
 
@@ -8,15 +8,15 @@ The agent listens only on `127.0.0.1:4545`. Browser requests are restricted to t
 
 ## One-time setup
 
-Download and unzip [`NutriPlan-Instacart-Agent-v0.2.0.zip`](https://github.com/santitower/automated-health/releases/download/instacart-agent-v0.2.0/NutriPlan-Instacart-Agent-v0.2.0.zip). Google Chrome and Node.js 22 or newer are required.
+Open the installer for the computer from the [`v0.3.0 release`](https://github.com/santitower/automated-health/releases/tag/instacart-agent-v0.3.0). The installer downloads a private Node.js runtime and Playwright Chromium browser, installs the companion, starts it immediately, and configures automatic startup. No Node/npm setup, API keys, or existing browser installation are required.
 
-- macOS: open `Install NutriPlan Instacart Agent.command`. It installs a per-user LaunchAgent and starts automatically at login.
-- Windows: right-click `Install-NutriPlanInstacartAgent.ps1`, choose **Run with PowerShell**, and approve the prompt. It adds a minimized per-user startup launcher.
-- Linux: run `bash install-linux.sh`. It installs a per-user systemd service.
+- macOS: open `NutriPlan-Instacart-Agent-v0.3.0.pkg` and approve the normal macOS installer prompt.
+- Windows: open `Install-NutriPlan-Instacart-Agent.cmd`. It performs the installation in the current user account.
+- Linux: run the downloaded `install-linux.sh`. It installs a per-user systemd service.
 
-For a temporary macOS session without auto-start, open `Start NutriPlan Instacart Agent.command` and keep its Terminal window open.
+Operating systems do not allow a website to install native software silently, so the one installer approval cannot be removed. Everything after that approval is automatic.
 
-The first store request opens Chrome. Sign into Instacart and set the delivery address in that dedicated window once; the profile is reused on later runs.
+The first store request opens the private Chromium window. Sign into Instacart and set the delivery address there once; the profile is reused on later runs.
 
 ## Development
 

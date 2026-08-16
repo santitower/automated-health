@@ -9,7 +9,6 @@ type InstacartResult = { query: string; added: boolean; matchedName?: string; re
 type CartSummary = { requested: number; added: number; skipped: number };
 
 const AGENT_URL = process.env.NEXT_PUBLIC_INSTACART_AGENT_URL ?? "http://127.0.0.1:4545";
-const AGENT_DOWNLOAD_URL = "https://github.com/santitower/automated-health/releases/download/instacart-agent-v0.2.0/NutriPlan-Instacart-Agent-v0.2.0.zip";
 const AGENT_SETUP_URL = "https://github.com/santitower/automated-health/tree/master/instacart-agent#one-time-setup";
 
 export default function InstacartAgentPanel({ items }: { items: GroceryHandoff["items"] }) {
@@ -49,7 +48,7 @@ export default function InstacartAgentPanel({ items }: { items: GroceryHandoff["
       const data = await requestAgent<{ stores: InstacartStore[] }>("/stores", undefined, 120000);
       if (!data.stores.length) {
         setStatus("error");
-        setError("No stores were found. Sign into Instacart and set your delivery address in the Chrome window, then try again.");
+        setError("No stores were found. Sign into Instacart and set your delivery address in the private browser window, then try again.");
         return;
       }
       setStores(data.stores);
@@ -102,11 +101,11 @@ export default function InstacartAgentPanel({ items }: { items: GroceryHandoff["
       {status === "offline" && (
         <div className="agent-setup">
           <strong>One-time setup on this computer</strong>
-          <p>Download and unzip the companion, then run the installer for this computer. It starts automatically at login and keeps your Instacart login in its own local Chrome profile.</p>
+          <p>Open one installer and approve your computer’s security prompt. It downloads its own private Node and Chromium, installs Playwright, starts now, and starts automatically at login.</p>
           <div>
-            <a href={AGENT_DOWNLOAD_URL}>Download local agent ↓</a>
+            <a href="/downloads/instacart-agent">Download automatic installer ↓</a>
             <a href={AGENT_SETUP_URL} target="_blank" rel="noreferrer">Setup help ↗</a>
-            <button type="button" onClick={checkConnection}>I started it · retry</button>
+            <button type="button" onClick={checkConnection}>Installation finished · connect</button>
           </div>
         </div>
       )}
@@ -118,7 +117,7 @@ export default function InstacartAgentPanel({ items }: { items: GroceryHandoff["
       )}
 
       {status === "loading-stores" && (
-        <div className="agent-working" role="status"><i /><span><strong>Opening your Instacart Chrome…</strong><small>Sign in or confirm your delivery address there if prompted.</small></span></div>
+        <div className="agent-working" role="status"><i /><span><strong>Opening your private Instacart browser…</strong><small>Sign in or confirm your delivery address there if prompted.</small></span></div>
       )}
 
       {(status === "ready" || status === "adding" || status === "done") && (
@@ -136,7 +135,7 @@ export default function InstacartAgentPanel({ items }: { items: GroceryHandoff["
       )}
 
       {status === "adding" && (
-        <div className="agent-working" role="status"><i /><span><strong>Building your cart item by item…</strong><small>Keep the Chrome window open. NutriPlan will stop at cart review.</small></span></div>
+        <div className="agent-working" role="status"><i /><span><strong>Building your cart item by item…</strong><small>Keep the browser window open. NutriPlan will stop at cart review.</small></span></div>
       )}
 
       {summary && (
@@ -182,7 +181,7 @@ async function requestAgent<T>(path: string, init?: RequestInit, timeout = 30000
     return data as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("The local agent took too long to respond. Check its Chrome window and try again.");
+      throw new Error("The local agent took too long to respond. Check its browser window and try again.");
     }
     if (error instanceof TypeError) {
       throw new Error("The local Instacart agent could not be reached on this computer.");
