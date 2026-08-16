@@ -5,7 +5,7 @@ import { Sandbox } from "@vercel/sandbox";
 
 const REPOSITORY_URL = "https://github.com/santitower/automated-health.git";
 const LIVE_VIEW_PORT = 6080;
-const SESSION_TIMEOUT = 20 * 60 * 1_000;
+const SESSION_TIMEOUT = 5 * 60 * 1_000;
 const COMMAND_TIMEOUT = 10 * 60 * 1_000;
 const SANDBOX_VERSION = "v04";
 const VNC_PASSWORD_PATH = "/vercel/sandbox/.nutriplan-vnc-password";
