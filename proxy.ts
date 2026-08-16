@@ -2,13 +2,14 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { getSupabaseConfig, hasSupabaseEnv } from "./lib/supabase/config";
 
-const publicAuthPaths = new Set([
+const publicPaths = new Set([
   "/auth/login",
   "/auth/sign-up",
   "/auth/forgot-password",
   "/auth/check-email",
   "/auth/callback",
   "/auth/confirm",
+  "/downloads/instacart-agent",
 ]);
 
 export async function proxy(request: NextRequest) {
@@ -30,9 +31,9 @@ export async function proxy(request: NextRequest) {
   const { data: claimsData } = await supabase.auth.getClaims();
   const isAuthenticated = Boolean(claimsData?.claims?.sub);
   const pathname = request.nextUrl.pathname;
-  const isPublicAuthPath = publicAuthPaths.has(pathname);
+  const isPublicPath = publicPaths.has(pathname);
 
-  if (!isAuthenticated && !isPublicAuthPath && !pathname.startsWith("/auth/update-password")) {
+  if (!isAuthenticated && !isPublicPath && !pathname.startsWith("/auth/update-password")) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/auth/login";
     loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);

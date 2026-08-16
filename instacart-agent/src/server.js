@@ -19,7 +19,7 @@ import {
 
 const HOST = "127.0.0.1";
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4545;
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 const DEFAULT_ALLOWED_ORIGINS = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
@@ -158,7 +158,7 @@ server.requestTimeout = 10 * 60 * 1000;
 server.listen(PORT, HOST, () => {
   console.log(`NutriPlan Instacart agent ${VERSION} listening on http://${HOST}:${PORT}`);
   console.log(`Allowed origins: ${ALLOWED_ORIGINS.join(", ")}`);
-  console.log("Chrome opens on the first store request and remains available for cart review.");
+  console.log("The private browser opens on the first store request and remains available for cart review.");
 });
 
 async function shutdown() {

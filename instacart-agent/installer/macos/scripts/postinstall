@@ -1,0 +1,94 @@
+#!/bin/bash
+set -euo pipefail
+
+agent_dir="/Library/Application Support/NutriPlan/instacart-agent"
+runtime_dir="/Library/Application Support/NutriPlan/runtime"
+browser_dir="/Library/Application Support/NutriPlan/playwright-browsers"
+shared_dir="/Users/Shared/NutriPlan"
+plist="/Library/LaunchAgents/app.nutriplan.instacart-agent.plist"
+node_release="https://nodejs.org/dist/latest-v22.x"
+temporary_dir="$(mktemp -d /private/tmp/nutriplan-installer.XXXXXX)"
+
+cleanup() {
+  if [[ "$temporary_dir" == /private/tmp/nutriplan-installer.* ]]; then
+    rm -rf "$temporary_dir"
+  fi
+}
+trap cleanup EXIT
+
+case "$(uname -m)" in
+  arm64) node_arch="arm64" ;;
+  x86_64) node_arch="x64" ;;
+  *) echo "NutriPlan does not support this Mac architecture." >&2; exit 1 ;;
+esac
+
+echo "Downloading NutriPlan's private Node.js runtime…"
+curl --fail --silent --show-error --location "$node_release/SHASUMS256.txt" -o "$temporary_dir/SHASUMS256.txt"
+node_archive="$(awk -v arch="$node_arch" '$2 ~ ("darwin-" arch "\\.tar\\.gz$") { print $2; exit }' "$temporary_dir/SHASUMS256.txt")"
+expected_sha="$(awk -v file="$node_archive" '$2 == file { print $1; exit }' "$temporary_dir/SHASUMS256.txt")"
+if [[ -z "$node_archive" || -z "$expected_sha" ]]; then
+  echo "NutriPlan could not identify the Node.js runtime download." >&2
+  exit 1
+fi
+
+curl --fail --silent --show-error --location "$node_release/$node_archive" -o "$temporary_dir/$node_archive"
+actual_sha="$(shasum -a 256 "$temporary_dir/$node_archive" | awk '{ print $1 }')"
+if [[ "$actual_sha" != "$expected_sha" ]]; then
+  echo "The downloaded Node.js runtime failed its security checksum." >&2
+  exit 1
+fi
+
+if [[ "$runtime_dir" == "/Library/Application Support/NutriPlan/runtime" ]]; then
+  rm -rf "$runtime_dir"
+fi
+mkdir -p "$runtime_dir" "$browser_dir" "$shared_dir"
+tar -xzf "$temporary_dir/$node_archive" -C "$runtime_dir" --strip-components=1
+
+node_path="$runtime_dir/bin/node"
+npm_cli="$runtime_dir/lib/node_modules/npm/bin/npm-cli.js"
+export PLAYWRIGHT_BROWSERS_PATH="$browser_dir"
+export PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=120000
+
+echo "Installing the Playwright companion and its private Chromium browser…"
+cd "$agent_dir"
+"$node_path" "$npm_cli" install --omit=dev --no-audit --no-fund
+"$node_path" "$agent_dir/node_modules/playwright/cli.js" install --no-shell chromium
+
+chmod -R a+rX "/Library/Application Support/NutriPlan"
+chmod 0777 "$shared_dir"
+touch "$shared_dir/instacart-agent.log" "$shared_dir/instacart-agent-error.log"
+chmod 0666 "$shared_dir/instacart-agent.log" "$shared_dir/instacart-agent-error.log"
+
+cat > "$plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>app.nutriplan.instacart-agent</string>
+  <key>ProgramArguments</key>
+  <array><string>$node_path</string><string>$agent_dir/src/server.js</string></array>
+  <key>WorkingDirectory</key><string>$agent_dir</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>PLAYWRIGHT_BROWSERS_PATH</key><string>$browser_dir</string></dict>
+  <key>LimitLoadToSessionType</key><string>Aqua</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>5</integer>
+  <key>StandardOutPath</key><string>$shared_dir/instacart-agent.log</string>
+  <key>StandardErrorPath</key><string>$shared_dir/instacart-agent-error.log</string>
+</dict>
+</plist>
+PLIST
+chown root:wheel "$plist"
+chmod 0644 "$plist"
+
+console_user="$(stat -f '%Su' /dev/console)"
+if [[ -n "$console_user" && "$console_user" != "root" && "$console_user" != "loginwindow" ]]; then
+  console_uid="$(id -u "$console_user")"
+  launchctl bootout "gui/$console_uid" "$plist" >/dev/null 2>&1 || true
+  launchctl bootstrap "gui/$console_uid" "$plist"
+  launchctl kickstart -k "gui/$console_uid/app.nutriplan.instacart-agent"
+fi
+
+echo "NutriPlan Instacart agent installed and running."
+exit 0

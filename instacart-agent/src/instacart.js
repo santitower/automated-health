@@ -1,4 +1,4 @@
-import { chromium } from "playwright-core";
+import { chromium } from "playwright";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -15,12 +15,11 @@ export function browserIsRunning() {
 export async function launchBrowser() {
   if (!contextPromise) {
     const launchPromise = chromium.launchPersistentContext(PROFILE_DIR, {
-      channel: "chrome",
       headless: false,
       viewport: null,
     }).catch((error) => {
       if (contextPromise === launchPromise) contextPromise = null;
-      throw new Error(`Chrome could not start. Install Google Chrome, then restart the NutriPlan agent. ${error.message}`);
+      throw new Error(`The NutriPlan browser could not start. Re-run the installer, then restart the agent. ${error.message}`);
     });
     contextPromise = launchPromise;
     launchPromise.then((context) => {
@@ -102,7 +101,7 @@ const ADD_BUTTON_NAME = /^Add\b/;
 
 async function inStoreSearch(page, query) {
   if (await hasAuthModal(page)) {
-    throw new Error("Instacart needs your login. Sign in in the Chrome window, then retry this cart.");
+    throw new Error("Instacart needs your login. Sign in in the private browser window, then retry this cart.");
   }
 
   const box = page.getByPlaceholder(/Search/i).first();
