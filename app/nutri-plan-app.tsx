@@ -128,6 +128,7 @@ export default function NutriPlanApp({ initialState, user, persistenceEnabled = 
     return <><PlanReview profile={profile} targets={targets} plan={plan} validation={validatePlan(profile, targets, plan)} persistenceSaving={persistence.state === "saving"} selectedDay={selectedDay} setSelectedDay={setSelectedDay} onMeal={setSelectedMeal} onEdit={editProfile} onRegenerate={regeneratePlan} onApprove={approvePlan} selectedMeal={selectedMeal} closeMeal={() => setSelectedMeal(null)} />{user && <AccountChip user={user} />}<PersistenceToast persistence={persistence} /></>;
   }
 
+  const today = plan.find((item) => item.day === weekdayKey(new Date())) ?? plan[0];
   const groceries = buildGroceryList(plan);
   const groceryItems = groceries.flatMap((group) => group.items);
   const groceryCount = groceryItems.length;
@@ -209,8 +210,14 @@ export default function NutriPlanApp({ initialState, user, persistenceEnabled = 
         {page === "today" && (
           <>
             {targets.clinicalSupervisionRequired && <ClinicalNotice targets={targets} />}
-            <header className="topbar compact-topbar"><div><span className="eyebrow">PLAN APPROVED</span><h1>Your approved week, {profile.name}.</h1><p className="lede">Choose a day to see its nutrition, meals, and recipes. This is the same plan you reviewed and approved.</p></div><button className="outline-btn" onClick={() => setPage("groceries")}>Review groceries</button></header>
-            <PlanWorkspace plan={plan} targets={targets} selectedDay={selectedDay} onSelectDay={setSelectedDay} onOpenMeal={setSelectedMeal} />
+            <header className="topbar compact-topbar"><div><span className="eyebrow">TODAY · APPROVED PLAN</span><h1>Your day is ready, {profile.name}.</h1><p className="lede">Start with today&apos;s meals and targets. Open the full meal plan when you want to look ahead or compare days.</p></div><button className="outline-btn" onClick={() => setPage("plan")}>View full week</button></header>
+            <div className="today-layout">
+              <div className="today-day-card"><DayPlan day={today} targets={targets} onOpenMeal={setSelectedMeal} isToday /></div>
+              <aside className="today-rail">
+                <article className="today-target-card"><span className="eyebrow">DAILY TARGETS</span><h2>Today at a glance</h2><div className="today-target-list"><span><b>{targets.calories.toLocaleString()}</b><small>calories</small></span><span><b>{targets.protein}g</b><small>protein</small></span><span><b>{today.meals.length}</b><small>meals</small></span></div></article>
+                <article className="today-week-card"><span className="eyebrow">WEEK STATUS</span><h2>7 days approved</h2><p>{profile.diet} meals built around your targets and {budgetLabel(profile)} budget.</p><button className="text-btn" onClick={() => setPage("plan")}>Explore the full week →</button></article>
+              </aside>
+            </div>
             <section className="grocery-strip"><div className="basket">◫</div><div><span className="eyebrow">GENERATED FROM YOUR PLAN</span><h3>{groceryCount} minimum grocery requirements</h3><p>Review what you already have before an AI shopping agent matches products and packages.</p></div><div className="grocery-total"><span>Budget target</span><strong>{budgetLabel(profile)}</strong></div><button className="primary-btn" onClick={() => setPage("groceries")}>Review pantry & groceries →</button></section>
           </>
         )}
@@ -246,8 +253,16 @@ export default function NutriPlanApp({ initialState, user, persistenceEnabled = 
 
         {page === "progress" && (
           <section className="page-view">
-            <header className="topbar"><div><span className="eyebrow">BASELINE CREATED</span><h1>Your progress starts here.</h1><p className="lede">Once check-ins are added, targets can adjust from multi-week trends instead of reacting to one day.</p></div><button className="outline-btn" disabled>Check-ins coming next</button></header>
-            <div className="progress-grid"><article className="progress-chart empty-progress"><span className="eyebrow">STARTING POINT</span><div className="progress-kpis"><div><strong>{profile.weightKg.toFixed(1)} kg</strong><span>current weight</span></div><div><strong>{targets.projectedKg || "—"}{targets.projectedKg ? " kg" : ""}</strong><span>projected weekly change</span></div></div><div className="baseline-line"><i /><span>Log your first weekly check-in to begin the trend.</span></div></article><article className="consistency-card"><span className="eyebrow">PLAN FOUNDATION</span><h2>Consistency over precision</h2><p>Your approved plan is the baseline. Future adjustments should use adherence, hunger, energy, and weight trends together.</p><div className="signal"><span>✓</span><div><strong>Week one ready</strong><small>{plan.length} days · {groceryCount} grocery items</small></div></div></article></div>
+            <header className="topbar compact-topbar"><div><span className="eyebrow">YOUR BASELINE</span><h1>Progress starts with a steady week.</h1><p className="lede">Your starting point is saved. Once weekly check-ins are available, this page will use trends—not single-day changes—to guide adjustments.</p></div><span className="progress-status">Baseline ready</span></header>
+            <div className="progress-metrics" aria-label="Starting progress metrics">
+              <article><span>Starting weight</span><strong>{profile.weightKg.toFixed(1)} kg</strong><small>From your profile</small></article>
+              <article><span>Plan target</span><strong>{targets.calories.toLocaleString()} kcal</strong><small>{targets.protein}g protein daily</small></article>
+              <article><span>Planned direction</span><strong>{progressDirection(profile, targets)}</strong><small>{targets.method === "psmf" ? "Set by your care plan" : "Conservative estimate"}</small></article>
+            </div>
+            <div className="progress-layout">
+              <article className="checkin-empty"><div className="checkin-icon">↗</div><span className="eyebrow">WEEKLY CHECK-INS</span><h2>No progress entries yet</h2><p>Complete your approved week first. Future check-ins will combine weight trend, plan adherence, hunger, and energy before suggesting any target change.</p><div className="checkin-timeline" aria-label="Future weekly check-in timeline"><span className="ready"><i>✓</i><b>Baseline</b><small>Saved</small></span><span><i>1</i><b>Week 1</b><small>Next</small></span><span><i>2</i><b>Week 2</b><small>Pending</small></span><span><i>3</i><b>Week 3</b><small>Pending</small></span></div></article>
+              <aside className="progress-guide"><span className="eyebrow">WHAT WILL INFORM CHANGES</span><h2>A trend, not one number.</h2><p>NutriPlan should only adjust a plan after there is enough context to make the change useful.</p><ul><li><span>↘</span><div><strong>Weight trend</strong><small>Several check-ins, not daily noise</small></div></li><li><span>✓</span><div><strong>Plan consistency</strong><small>How closely the week was followed</small></div></li><li><span>◌</span><div><strong>Hunger and energy</strong><small>How the plan feels in practice</small></div></li></ul><div className="progress-ready"><span>✓</span><div><strong>Week one is ready</strong><small>{plan.length} days · {groceryCount} grocery items</small></div></div></aside>
+            </div>
             <div className="safety-note"><span>ⓘ</span><p>NutriPlan uses conservative general-wellness estimates. It does not diagnose conditions or replace guidance from a registered clinician.</p></div>
           </section>
         )}
@@ -356,7 +371,7 @@ function WeekOverview({ plan, selectedDay, onSelectDay }: { plan: PlanDay[]; sel
   );
 }
 
-function DayPlan({ day, targets, onOpenMeal }: { day: PlanDay; targets: Targets; onOpenMeal: (meal: Meal) => void }) {
+function DayPlan({ day, targets, onOpenMeal, isToday = false }: { day: PlanDay; targets: Targets; onOpenMeal: (meal: Meal) => void; isToday?: boolean }) {
   const calories = sum(day.meals, "calories");
   const protein = sum(day.meals, "protein");
   const prepMinutes = day.meals.reduce((total, meal) => total + Number(meal.prep.split(" ")[0]), 0);
@@ -365,7 +380,7 @@ function DayPlan({ day, targets, onOpenMeal }: { day: PlanDay; targets: Targets;
   return (
     <section className="day-plan" aria-live="polite">
       <header className="day-plan-heading">
-        <div><span className="eyebrow">{dayName(day.day).toUpperCase()} · AUGUST {day.date}</span><h2>{dayName(day.day)}&apos;s meals</h2><p>{day.meals.length} meals · about {prepMinutes} minutes total prep</p></div>
+        <div><span className="eyebrow">{isToday ? `TODAY · ${dayName(day.day).toUpperCase()}` : `${dayName(day.day).toUpperCase()} · AUGUST ${day.date}`}</span><h2>{isToday ? "Today’s meals" : `${dayName(day.day)}’s meals`}</h2><p>{day.meals.length} meals · about {prepMinutes} minutes total prep</p></div>
         <span className="fit-badge">✓ On target</span>
       </header>
 
@@ -408,4 +423,15 @@ function sum(meals: Meal[], key: "calories" | "protein") {
 
 function dayName(day: string) {
   return ({ Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday" } as Record<string, string>)[day] ?? day;
+}
+
+function weekdayKey(date: Date) {
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getDay()];
+}
+
+function progressDirection(profile: Profile, targets: Targets) {
+  if (targets.method === "psmf") return "Clinician-led";
+  if (profile.goal === "maintain") return "Maintain";
+  if (profile.goal === "gain") return "Gradual gain";
+  return targets.projectedKg ? `${targets.projectedKg} kg/week` : "Gradual loss";
 }
