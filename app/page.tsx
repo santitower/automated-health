@@ -5,6 +5,7 @@ import { createClient } from "../lib/supabase/server";
 import { emptyAppState, loadAppState, presentUser } from "../lib/app-state";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 export default async function Home() {
   if (!hasSupabaseEnv()) {

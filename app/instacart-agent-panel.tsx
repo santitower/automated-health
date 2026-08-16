@@ -1,42 +1,68 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import {
+  buildInstacartCart,
+  disconnectInstacartBrowser,
+  loadInstacartStores,
+  pauseInstacartBrowser,
+  startInstacartBrowser,
+} from "./instacart-sandbox-actions";
 import type { GroceryHandoff } from "./planner";
 
-type AgentStatus = "checking" | "offline" | "online" | "loading-stores" | "ready" | "adding" | "done" | "error";
+type AgentStatus =
+  | "idle"
+  | "starting"
+  | "browser-open"
+  | "loading-stores"
+  | "ready"
+  | "adding"
+  | "done"
+  | "pausing"
+  | "error";
 type InstacartStore = { href: string; name: string };
 type InstacartResult = { query: string; added: boolean; matchedName?: string; reason?: string; quantity?: number };
 type CartSummary = { requested: number; added: number; skipped: number };
 
-const AGENT_URL = process.env.NEXT_PUBLIC_INSTACART_AGENT_URL ?? "http://127.0.0.1:4545";
-const AGENT_SETUP_URL = "https://github.com/santitower/automated-health/tree/master/instacart-agent#one-time-setup";
-
 export default function InstacartAgentPanel({ items }: { items: GroceryHandoff["items"] }) {
-  const [status, setStatus] = useState<AgentStatus>("checking");
+  const [status, setStatus] = useState<AgentStatus>("idle");
+  const [liveUrl, setLiveUrl] = useState("");
   const [stores, setStores] = useState<InstacartStore[]>([]);
   const [selectedStore, setSelectedStore] = useState("");
   const [results, setResults] = useState<InstacartResult[]>([]);
   const [summary, setSummary] = useState<CartSummary | null>(null);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-    requestAgent<{ ok: boolean }>("/health", undefined, 1800)
-      .then(() => { if (!cancelled) setStatus("online"); })
-      .catch(() => { if (!cancelled) setStatus("offline"); });
-    return () => { cancelled = true; };
-  }, []);
-
-  async function checkConnection() {
-    setStatus("checking");
+  async function startBrowser() {
+    setStatus("starting");
     setError("");
-    try {
-      await requestAgent("/health", undefined, 2500);
-      setStatus("online");
-    } catch {
-      setStatus("offline");
-      setError("The local agent is not running yet. Install or start it on this computer, then retry.");
+    setResults([]);
+    setSummary(null);
+
+    const browserWindow = window.open("about:blank", "nutriplan-instacart");
+    if (browserWindow) {
+      browserWindow.document.title = "Starting private Instacart browser";
+      browserWindow.document.body.textContent = "NutriPlan is starting your private Instacart browser…";
     }
+
+    const response = await startInstacartBrowser();
+    if (!response.ok) {
+      browserWindow?.close();
+      setStatus("error");
+      setError(response.error);
+      return;
+    }
+
+    setLiveUrl(response.data.liveUrl);
+    setStatus("browser-open");
+    if (browserWindow) {
+      browserWindow.opener = null;
+      browserWindow.location.replace(response.data.liveUrl);
+    }
+  }
+
+  function openLiveBrowser() {
+    if (liveUrl) window.open(liveUrl, "nutriplan-instacart", "noopener,noreferrer");
   }
 
   async function loadStores() {
@@ -44,20 +70,20 @@ export default function InstacartAgentPanel({ items }: { items: GroceryHandoff["
     setError("");
     setResults([]);
     setSummary(null);
-    try {
-      const data = await requestAgent<{ stores: InstacartStore[] }>("/stores", undefined, 120000);
-      if (!data.stores.length) {
-        setStatus("error");
-        setError("No stores were found. Sign into Instacart and set your delivery address in the private browser window, then try again.");
-        return;
-      }
-      setStores(data.stores);
-      setSelectedStore(data.stores[0].href);
-      setStatus("ready");
-    } catch (agentError) {
+    const response = await loadInstacartStores();
+    if (!response.ok) {
       setStatus("error");
-      setError(messageFrom(agentError));
+      setError(response.error);
+      return;
     }
+    if (!response.data.stores.length) {
+      setStatus("error");
+      setError("No stores were found. Set your delivery address in the private Instacart browser, then try again.");
+      return;
+    }
+    setStores(response.data.stores);
+    setSelectedStore(response.data.stores[0].href);
+    setStatus("ready");
   }
 
   async function buildCart() {
@@ -66,58 +92,98 @@ export default function InstacartAgentPanel({ items }: { items: GroceryHandoff["
     setError("");
     setResults([]);
     setSummary(null);
-    try {
-      const data = await requestAgent<{ results: InstacartResult[]; summary: CartSummary }>("/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          storeHref: selectedStore,
-          items: items.map((item) => ({ query: item.name, quantity: 1 })),
-        }),
-      }, 10 * 60 * 1000);
-      setResults(data.results);
-      setSummary(data.summary);
-      setStatus("done");
-    } catch (agentError) {
+    const response = await buildInstacartCart({
+      storeHref: selectedStore,
+      items: items.map((item) => ({ query: item.name, quantity: 1 })),
+    });
+    if (!response.ok) {
       setStatus("error");
-      setError(messageFrom(agentError));
+      setError(response.error);
+      return;
     }
+    setResults(response.data.results);
+    setSummary(response.data.summary);
+    setStatus("done");
+    openLiveBrowser();
   }
 
-  const connected = status !== "checking" && status !== "offline";
+  async function pauseBrowser() {
+    setStatus("pausing");
+    const response = await pauseInstacartBrowser();
+    if (!response.ok) {
+      setStatus("error");
+      setError(response.error);
+      return;
+    }
+    setStatus("idle");
+    setLiveUrl("");
+  }
+
+  async function disconnectBrowser() {
+    if (!window.confirm("Disconnect Instacart and erase its saved browser session? You will need to sign in again next time.")) return;
+    setStatus("pausing");
+    const response = await disconnectInstacartBrowser();
+    if (!response.ok) {
+      setStatus("error");
+      setError(response.error);
+      return;
+    }
+    setStatus("idle");
+    setLiveUrl("");
+    setStores([]);
+    setSelectedStore("");
+    setResults([]);
+    setSummary(null);
+  }
+
+  const active = Boolean(liveUrl) && status !== "idle";
+  const statusLabel = status === "starting"
+    ? "Starting"
+    : status === "loading-stores" || status === "adding" || status === "pausing"
+      ? "Working"
+      : active
+        ? "Private browser ready"
+        : "Not started";
 
   return (
     <section className="instacart-agent" aria-labelledby="instacart-agent-title">
       <div className="agent-heading">
         <div>
-          <span className="eyebrow">LOCAL PLAYWRIGHT AGENT</span>
+          <span className="eyebrow">PRIVATE PLAYWRIGHT BROWSER</span>
           <h3 id="instacart-agent-title">Build this cart in Instacart</h3>
         </div>
-        <span className={`agent-state ${connected ? "connected" : status}`}>
-          <i />{status === "checking" ? "Checking" : connected ? "Connected" : "Not running"}
+        <span className={`agent-state ${active ? "connected" : status}`}>
+          <i />{statusLabel}
         </span>
       </div>
 
-      {status === "offline" && (
+      {status === "idle" && (
         <div className="agent-setup">
-          <strong>One-time setup on this computer</strong>
-          <p>Open one installer and approve your computer’s security prompt. It downloads its own private Node and Chromium, installs Playwright, starts now, and starts automatically at login.</p>
-          <div>
-            <a href="/downloads/instacart-agent">Download automatic installer ↓</a>
-            <a href={AGENT_SETUP_URL} target="_blank" rel="noreferrer">Setup help ↗</a>
-            <button type="button" onClick={checkConnection}>Installation finished · connect</button>
+          <strong>Nothing installs on this computer</strong>
+          <p>NutriPlan starts an isolated Playwright browser only when you need it. Sign into Instacart there once, then reuse that private session for later carts.</p>
+          <button className="agent-primary" type="button" onClick={startBrowser}>
+            Start private Instacart browser →
+          </button>
+        </div>
+      )}
+
+      {status === "starting" && (
+        <div className="agent-working" role="status"><i /><span><strong>Preparing Playwright and Chromium…</strong><small>The first free session can take about a minute. Later sessions resume faster.</small></span></div>
+      )}
+
+      {status === "browser-open" && (
+        <div className="agent-session">
+          <strong>Sign into Instacart in the private browser</strong>
+          <p>Set your delivery address there too. NutriPlan never receives your Instacart password or payment information.</p>
+          <div className="agent-actions">
+            <button className="agent-secondary" type="button" onClick={openLiveBrowser}>Reopen private browser ↗</button>
+            <button className="agent-primary" type="button" onClick={loadStores}>I’m signed in · find my stores →</button>
           </div>
         </div>
       )}
 
-      {status === "online" && (
-        <button className="agent-primary" type="button" onClick={loadStores}>
-          Open Instacart and find my stores →
-        </button>
-      )}
-
       {status === "loading-stores" && (
-        <div className="agent-working" role="status"><i /><span><strong>Opening your private Instacart browser…</strong><small>Sign in or confirm your delivery address there if prompted.</small></span></div>
+        <div className="agent-working" role="status"><i /><span><strong>Reading stores for your delivery address…</strong><small>Keep the private browser open if Instacart asks you to confirm anything.</small></span></div>
       )}
 
       {(status === "ready" || status === "adding" || status === "done") && (
@@ -131,11 +197,12 @@ export default function InstacartAgentPanel({ items }: { items: GroceryHandoff["
           <button className="agent-primary" type="button" onClick={buildCart} disabled={!selectedStore || !items.length || status === "adding"}>
             {status === "adding" ? `Adding ${items.length} items…` : status === "done" ? "Rebuild cart" : `Add ${items.length} items to cart →`}
           </button>
+          {liveUrl && <button className="agent-secondary" type="button" onClick={openLiveBrowser}>Open private browser ↗</button>}
         </div>
       )}
 
       {status === "adding" && (
-        <div className="agent-working" role="status"><i /><span><strong>Building your cart item by item…</strong><small>Keep the browser window open. NutriPlan will stop at cart review.</small></span></div>
+        <div className="agent-working" role="status"><i /><span><strong>Building your cart item by item…</strong><small>NutriPlan will stop at the Instacart cart for your review.</small></span></div>
       )}
 
       {summary && (
@@ -156,42 +223,32 @@ export default function InstacartAgentPanel({ items }: { items: GroceryHandoff["
         </ul>
       )}
 
-      {status === "error" && (
-        <div className="agent-error" role="alert"><p>{error}</p><button type="button" onClick={checkConnection}>Check agent again</button></div>
+      {status === "done" && (
+        <div className="agent-actions">
+          <button className="agent-secondary" type="button" onClick={openLiveBrowser}>Review cart in Instacart ↗</button>
+          <button className="agent-secondary" type="button" onClick={pauseBrowser}>Pause and save session</button>
+        </div>
       )}
 
-      {error && status === "offline" && <p className="agent-inline-error" role="alert">{error}</p>}
-      <small className="agent-disclaimer">Best-effort product matching only. Review product, size, quantity, price, and dietary fit in Instacart before checkout. The agent never checks out or enters payment.</small>
+      {status === "pausing" && (
+        <div className="agent-working" role="status"><i /><span><strong>Saving and pausing your browser…</strong><small>Your Instacart session will resume next time.</small></span></div>
+      )}
+
+      {status === "error" && (
+        <div className="agent-error" role="alert">
+          <p>{error}</p>
+          <div className="agent-actions">
+            {liveUrl && <button type="button" onClick={openLiveBrowser}>Open private browser</button>}
+            {liveUrl && <button type="button" onClick={loadStores}>Try finding stores again</button>}
+            {!liveUrl && <button type="button" onClick={startBrowser}>Try starting again</button>}
+          </div>
+        </div>
+      )}
+
+      {liveUrl && status !== "pausing" && (
+        <button className="agent-disconnect" type="button" onClick={disconnectBrowser}>Disconnect and erase Instacart session</button>
+      )}
+      <small className="agent-disclaimer">Playwright runs in an isolated browser session and pauses automatically. Always review product, size, quantity, price, and dietary fit. NutriPlan never checks out or enters payment.</small>
     </section>
   );
-}
-
-async function requestAgent<T>(path: string, init?: RequestInit, timeout = 30000): Promise<T> {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(`${AGENT_URL}${path}`, {
-      ...init,
-      cache: "no-store",
-      mode: "cors",
-      signal: controller.signal,
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || `The local agent responded ${response.status}.`);
-    return data as T;
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("The local agent took too long to respond. Check its browser window and try again.");
-    }
-    if (error instanceof TypeError) {
-      throw new Error("The local Instacart agent could not be reached on this computer.");
-    }
-    throw error;
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
-function messageFrom(error: unknown) {
-  return error instanceof Error ? error.message : "The local Instacart agent could not complete this request.";
 }

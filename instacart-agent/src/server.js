@@ -104,6 +104,14 @@ const server = createServer(async (req, res) => {
       });
     }
 
+    if (req.method === "POST" && req.url === "/open") {
+      await runExclusive("opening Instacart", async () => {
+        const { page } = await launchBrowser();
+        await goHome(page);
+      });
+      return sendJson(res, 200, { ok: true });
+    }
+
     if (req.method === "GET" && req.url === "/stores") {
       const stores = await runExclusive("finding stores", async () => {
         const { page } = await launchBrowser();
@@ -147,7 +155,7 @@ const server = createServer(async (req, res) => {
       });
     }
 
-    return sendJson(res, 404, { error: "Not found. Try GET /health, GET /stores, or POST /add." });
+    return sendJson(res, 404, { error: "Not found. Try GET /health, POST /open, GET /stores, or POST /add." });
   } catch (error) {
     const status = error instanceof RequestError ? error.status : 500;
     return sendJson(res, status, { error: error.message || "The Instacart agent failed." });

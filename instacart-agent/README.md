@@ -1,22 +1,14 @@
 # NutriPlan Instacart agent
 
-This local companion uses Playwright to add an approved NutriPlan grocery list to the user’s own Instacart cart. It launches a visible, dedicated Chromium profile, remembers the user’s Instacart login, and stops on the cart page for review. It never submits checkout or payment.
+This companion uses Playwright to add an approved NutriPlan grocery list to the user’s own Instacart cart. It launches a visible, dedicated Chromium profile, remembers the user’s Instacart login, and stops on the cart page for review. It never submits checkout or payment.
 
-This companion was integrated from [cmedipally7/instacart-agent](https://github.com/cmedipally7/instacart-agent) and adapted for NutriPlan's authenticated, persistent application. The local server, validation, origin restrictions, installers, tests, and cart-review safeguards are maintained here.
+This companion was integrated from [cmedipally7/instacart-agent](https://github.com/cmedipally7/instacart-agent) and adapted for NutriPlan's authenticated, persistent application. The server, validation, tests, and cart-review safeguards are maintained here.
 
-The agent listens only on `127.0.0.1:4545`. Browser requests are restricted to the production NutriPlan origin and local development origins. Store URLs, item names, package quantities, request size, and concurrent runs are validated before Playwright is allowed to act.
+In production, NutriPlan creates one persistent Vercel Sandbox per authenticated user and runs this agent inside it. The sandbox exposes a password-protected noVNC browser for the user’s Instacart login and cart review. Its controller still listens only on `127.0.0.1:4545`, so only NutriPlan’s server-side sandbox commands can reach it. Store URLs, item names, package quantities, request size, and concurrent runs are validated before Playwright is allowed to act.
 
-## One-time setup
+No software is installed on the user’s computer. The sandbox pauses automatically and preserves its private Chromium profile for the next run. Disconnecting Instacart from NutriPlan deletes that sandbox and the saved profile.
 
-Open the installer for the computer from the [`v0.3.0 release`](https://github.com/santitower/automated-health/releases/tag/instacart-agent-v0.3.0). The installer downloads a private Node.js runtime and Playwright Chromium browser, installs the companion, starts it immediately, and configures automatic startup. No Node/npm setup, API keys, or existing browser installation are required.
-
-- macOS: open `NutriPlan-Instacart-Agent-v0.3.0.pkg` and approve the normal macOS installer prompt.
-- Windows: open `Install-NutriPlan-Instacart-Agent.cmd`. It performs the installation in the current user account.
-- Linux: run the downloaded `install-linux.sh`. It installs a per-user systemd service.
-
-Operating systems do not allow a website to install native software silently, so the one installer approval cannot be removed. Everything after that approval is automatic.
-
-The first store request opens the private Chromium window. Sign into Instacart and set the delivery address there once; the profile is reused on later runs.
+The older local installers remain in the repository for development and comparison, but NutriPlan no longer presents them as the production setup path.
 
 ## Development
 
@@ -29,6 +21,7 @@ npm run serve
 Endpoints:
 
 - `GET /health` reports agent availability without opening Chrome.
+- `POST /open` opens/reuses Chrome and navigates to Instacart for login or review.
 - `GET /stores` opens/reuses Chrome and lists stores for the active delivery address.
 - `POST /add` accepts `{ "storeHref": "/store/aldi/storefront", "items": [{ "query": "oat milk", "quantity": 1 }] }`, adds best-effort top matches, and opens the cart.
 
