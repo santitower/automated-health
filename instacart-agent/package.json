@@ -1,0 +1,22 @@
+{
+  "name": "@nutriplan/instacart-agent",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Loopback-only Playwright companion that adds an approved NutriPlan grocery list to a user's Instacart cart.",
+  "type": "module",
+  "bin": {
+    "nutriplan-instacart": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "serve": "node src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "playwright-core": "^1.62.1"
+  }
+}

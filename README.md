@@ -38,3 +38,15 @@ The checked-in Supabase migration is the deployable source for the initial schem
 ## Deploy
 
 Import this repository into Vercel and push the main branch to deploy the anonymous experience. To enable accounts, add the same two environment variables and update Supabase's Site URL and redirect allow-list to the production domain.
+
+## Local Instacart Playwright agent
+
+The grocery page can hand the reviewed list to the companion in [`instacart-agent`](./instacart-agent). The companion runs only on the user’s computer at `127.0.0.1:4545`, owns a dedicated visible Chrome profile, searches the selected local store, adds best-effort product matches, and stops on the cart page. Checkout and payment always remain manual. The app links to a versioned GitHub release bundle so users do not need to clone the repository.
+
+Each computer needs one approved local installation because a website cannot silently install or launch native software. After installation, the included macOS, Windows, and Linux helpers start the agent automatically at user login. See [`instacart-agent/README.md`](./instacart-agent/README.md) for setup, security boundaries, and development commands.
+
+The production frontend origin and local development origins are allowed by default. Override the exact allowlist when self-hosting:
+
+```bash
+ALLOWED_ORIGINS=http://localhost:3000,https://your-app.example npm run serve
+```
