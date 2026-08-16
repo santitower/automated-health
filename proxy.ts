@@ -8,6 +8,7 @@ const publicAuthPaths = new Set([
   "/auth/forgot-password",
   "/auth/check-email",
   "/auth/callback",
+  "/auth/confirm",
 ]);
 
 export async function proxy(request: NextRequest) {

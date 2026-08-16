@@ -52,7 +52,7 @@ export async function signUp(_state: AuthActionState, formData: FormData): Promi
     password,
     options: {
       data: { display_name: name },
-      emailRedirectTo: `${await origin()}/auth/callback`,
+      emailRedirectTo: `${await origin()}/auth/login?confirmed=1`,
     },
   });
   if (error) return { error: error.message };

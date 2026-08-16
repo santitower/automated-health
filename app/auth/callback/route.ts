@@ -14,7 +14,17 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) return NextResponse.redirect(new URL(next, request.url));
+
+    console.error("[auth/callback] Unable to exchange authorization code", {
+      code: error.code,
+      status: error.status,
+    });
   }
 
-  return NextResponse.redirect(new URL("/auth/login?error=Unable%20to%20complete%20sign-in", request.url));
+  return NextResponse.redirect(
+    new URL(
+      "/auth/login?error=Your%20email%20may%20already%20be%20confirmed.%20Sign%20in%20with%20your%20email%20and%20password.",
+      request.url,
+    ),
+  );
 }

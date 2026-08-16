@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { signInWithGoogle, type AuthActionState } from "./actions";
+import type { AuthActionState } from "./actions";
 
 type AuthAction = (state: AuthActionState, formData: FormData) => Promise<AuthActionState>;
 
@@ -30,16 +30,6 @@ export function AuthForm({
         {state.error && <p className="auth-error" role="alert">{state.error}</p>}
         <button className="auth-submit" disabled={pending}>{pending ? "Working…" : submitLabel(mode)}</button>
       </form>
-
-      {(mode === "login" || mode === "sign-up") && (
-        <>
-          <div className="auth-divider">OR</div>
-          <form action={signInWithGoogle}>
-            <input type="hidden" name="next" value={next} />
-            <button className="auth-google" type="submit">Continue with Google</button>
-          </form>
-        </>
-      )}
 
       {mode === "login" && <div className="auth-links"><Link href="/auth/sign-up">Create an account</Link><Link href="/auth/forgot-password">Forgot password?</Link></div>}
       {mode === "sign-up" && <div className="auth-links"><span>Already have an account?</span><Link href="/auth/login">Sign in</Link></div>}
