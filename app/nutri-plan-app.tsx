@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useState } from "react";
 import Onboarding from "./onboarding";
 import {
   budgetLabel,
@@ -128,16 +128,12 @@ export default function NutriPlanApp({ initialState, user, persistenceEnabled = 
     return <><PlanReview profile={profile} targets={targets} plan={plan} validation={validatePlan(profile, targets, plan)} persistenceSaving={persistence.state === "saving"} selectedDay={selectedDay} setSelectedDay={setSelectedDay} onMeal={setSelectedMeal} onEdit={editProfile} onRegenerate={regeneratePlan} onApprove={approvePlan} selectedMeal={selectedMeal} closeMeal={() => setSelectedMeal(null)} />{user && <AccountChip user={user} />}<PersistenceToast persistence={persistence} /></>;
   }
 
-  const today = plan[0];
   const groceries = buildGroceryList(plan);
   const groceryItems = groceries.flatMap((group) => group.items);
   const groceryCount = groceryItems.length;
   const includedGroceryCount = groceryCount - removedGroceries.length;
   const groceryHandoff = buildGroceryHandoff(profile, groceryItems, removedGroceries);
   const groceryHandoffJson = JSON.stringify(groceryHandoff, null, 2);
-  const dayCalories = sum(today.meals, "calories");
-  const dayProtein = sum(today.meals, "protein");
-  const calorieFit = Math.round((dayCalories / targets.calories) * 100);
   const navItems: { id: Page; label: string; icon: string }[] = [
     { id: "today", label: "Today", icon: "⌂" },
     { id: "plan", label: "Meal plan", icon: "▦" },
@@ -213,24 +209,8 @@ export default function NutriPlanApp({ initialState, user, persistenceEnabled = 
         {page === "today" && (
           <>
             {targets.clinicalSupervisionRequired && <ClinicalNotice targets={targets} />}
-            <header className="topbar"><div><span className="eyebrow">PLAN APPROVED</span><h1>Your week is ready, {profile.name}.</h1><p className="lede">Every meal below comes from the plan you approved. Its ingredients now power the grocery list.</p></div><button className="outline-btn" onClick={() => setPage("plan")}>Review plan</button></header>
-            <section className="hero-grid">
-              <article className="target-card">
-                <div className="card-heading"><div><span className="eyebrow">MONDAY&apos;S PLAN</span><h2>{dayCalories.toLocaleString()} calories</h2></div><span className="on-track">{Math.abs(dayCalories - targets.calories) <= 100 ? "Target fit" : "Close fit"}</span></div>
-                <div className="rings" aria-label="Planned nutrition against daily targets">
-                  <div className="ring calories" style={{ "--progress": `${Math.min(100, calorieFit)}%` } as CSSProperties}><div><strong>{calorieFit}%</strong><span>of calorie target</span></div></div>
-                  <div className="mini-stat"><span className="dot protein" /><div><strong>{dayProtein}g</strong><small>of {targets.protein}g protein</small></div></div>
-                  <div className="mini-stat"><span className="dot fiber" /><div><strong>{targets.method === "psmf" ? "Care plan" : `${targets.fiber}g`}</strong><small>{targets.method === "psmf" ? "controls other limits" : "daily fiber target"}</small></div></div>
-                </div>
-                <p className="insight">This day lands {Math.abs(dayCalories - targets.calories)} calories from your target and uses ingredients again later in the week.</p>
-              </article>
-              <article className="week-card">
-                <div className="card-heading"><div><span className="eyebrow">APPROVAL STATUS</span><h2>7 days approved</h2></div><button aria-label="Open weekly plan" onClick={() => setPage("plan")}>→</button></div>
-                <div className="week-days">{plan.map((day) => <div className={day.day === "Mon" ? "current" : ""} key={day.day}><span>{day.day[0]}</span><i className="done">✓</i></div>)}</div>
-                <div className="week-footer"><strong>{profile.diet}</strong><span>meal pattern</span><strong>{budgetLabel(profile)}</strong><span>budget target</span></div>
-              </article>
-            </section>
-            <MealsSection title="Meals for Monday" eyebrow="YOUR APPROVED DAY" meals={today.meals} savedMeals={savedMeals} onSave={saveMeal} onOpen={setSelectedMeal} onFullWeek={() => setPage("plan")} />
+            <header className="topbar compact-topbar"><div><span className="eyebrow">PLAN APPROVED</span><h1>Your approved week, {profile.name}.</h1><p className="lede">Choose a day to see its nutrition, meals, and recipes. This is the same plan you reviewed and approved.</p></div><button className="outline-btn" onClick={() => setPage("groceries")}>Review groceries</button></header>
+            <PlanWorkspace plan={plan} targets={targets} selectedDay={selectedDay} onSelectDay={setSelectedDay} onOpenMeal={setSelectedMeal} />
             <section className="grocery-strip"><div className="basket">◫</div><div><span className="eyebrow">GENERATED FROM YOUR PLAN</span><h3>{groceryCount} minimum grocery requirements</h3><p>Review what you already have before an AI shopping agent matches products and packages.</p></div><div className="grocery-total"><span>Budget target</span><strong>{budgetLabel(profile)}</strong></div><button className="primary-btn" onClick={() => setPage("groceries")}>Review pantry & groceries →</button></section>
           </>
         )}
@@ -416,10 +396,6 @@ function NutritionTarget({ label, value, detail, progress }: { label: string; va
       <small>{detail}</small>
     </div>
   );
-}
-
-function MealsSection({ title, eyebrow, meals, savedMeals = [], onSave, onOpen, onFullWeek }: { title: string; eyebrow: string; meals: Meal[]; savedMeals?: string[]; onSave?: (name: string) => void; onOpen: (meal: Meal) => void; onFullWeek?: () => void }) {
-  return <section className="meal-section"><div className="section-title"><div><span className="eyebrow">{eyebrow}</span><h2>{title}</h2></div>{onFullWeek && <button className="text-btn" onClick={onFullWeek}>View full week →</button>}</div><div className="meal-grid">{meals.map((meal) => <article className="meal-card" key={meal.id}><div className={`meal-art ${meal.tone}`}><span>{meal.icon}</span>{onSave && <button className={savedMeals.includes(meal.name) ? "saved" : ""} onClick={() => onSave(meal.name)} aria-label={`Save ${meal.name}`}>{savedMeals.includes(meal.name) ? "♥" : "♡"}</button>}</div><div className="meal-copy"><span>{meal.type} · {meal.time}</span><h3>{meal.name}</h3><p>{meal.calories} kcal · {meal.protein}g protein · {meal.prep}</p><button onClick={() => onOpen(meal)}>View recipe <b>→</b></button></div></article>)}</div></section>;
 }
 
 function MealModal({ meal, saved, onSave, onClose, reviewMode = false }: { meal: Meal; saved: boolean; onSave: () => void; onClose: () => void; reviewMode?: boolean }) {
