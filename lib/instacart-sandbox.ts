@@ -12,7 +12,7 @@ const LIVE_VIEW_PORT = 6080;
 const SESSION_TIMEOUT = 5 * 60 * 1_000;
 const COMMAND_TIMEOUT = 10 * 60 * 1_000;
 const SAVED_SESSION_LIFETIME = 24 * 60 * 60 * 1_000;
-const SANDBOX_VERSION = "v05";
+const SANDBOX_VERSION = "v06";
 const VNC_PASSWORD_PATH = "/vercel/sandbox/.nutriplan-vnc-password";
 const VIEW_TOKEN_PATH = "/vercel/sandbox/.nutriplan-view-token";
 
@@ -297,6 +297,12 @@ export async function addInstacartItems(
 export async function pauseInstacartSession(userId: string) {
   try {
     const sandbox = await Sandbox.get({ name: sandboxName(userId), resume: false });
+    try {
+      await callAgent<{ ok: true }>(sandbox, "/close", "POST", undefined, 30_000);
+    } catch {
+      // The sandbox must still pause if its browser agent already stopped. A
+      // stale profile lock is repaired safely when the session next resumes.
+    }
     await sandbox.stop();
   } catch (error) {
     if (!isSandboxNotFound(error)) throw error;

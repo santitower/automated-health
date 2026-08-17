@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { clearStaleProfileLock } from "./profile-lock.js";
 
 const HOME_URL = "https://www.instacart.com";
 const PROFILE_DIR = process.env.INSTACART_PROFILE_DIR
@@ -43,6 +44,7 @@ export function browserIsRunning() {
 export async function launchBrowser() {
   if (!contextPromise) {
     await hardenBrowserProfile();
+    await clearStaleProfileLock(PROFILE_DIR);
     const launchPromise = chromium.launchPersistentContext(PROFILE_DIR, {
       acceptDownloads: false,
       args: [
@@ -55,7 +57,8 @@ export async function launchBrowser() {
       viewport: null,
     }).catch((error) => {
       if (contextPromise === launchPromise) contextPromise = null;
-      throw new Error(`The NutriPlan browser could not start. Re-run the installer, then restart the agent. ${error.message}`);
+      console.error("Chromium launch failed.", error);
+      throw new Error("The private Instacart browser could not start. Try again. If this continues, disconnect and erase the saved Instacart session, then restart it.");
     });
     contextPromise = launchPromise;
     launchPromise.then((context) => {
