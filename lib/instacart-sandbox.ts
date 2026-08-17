@@ -2,13 +2,19 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 import { Sandbox } from "@vercel/sandbox";
+import {
+  buildPrivateViewerUrl,
+  INSTACART_ALLOWED_DOMAINS,
+} from "./instacart-viewer-security";
 
 const REPOSITORY_URL = "https://github.com/santitower/automated-health.git";
 const LIVE_VIEW_PORT = 6080;
 const SESSION_TIMEOUT = 5 * 60 * 1_000;
 const COMMAND_TIMEOUT = 10 * 60 * 1_000;
-const SANDBOX_VERSION = "v04";
+const SAVED_SESSION_LIFETIME = 24 * 60 * 60 * 1_000;
+const SANDBOX_VERSION = "v05";
 const VNC_PASSWORD_PATH = "/vercel/sandbox/.nutriplan-vnc-password";
+const VIEW_TOKEN_PATH = "/vercel/sandbox/.nutriplan-view-token";
 
 const CHROMIUM_SYSTEM_DEPENDENCIES = [
   "nss",
@@ -54,6 +60,13 @@ type AgentResponse = {
   status: number;
   body: string;
 };
+
+function isSandboxNotFound(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  const status = (error as Error & { response?: { status?: number } }).response?.status;
+  const code = (error as Error & { json?: { error?: { code?: string } } }).json?.error?.code;
+  return status === 404 || code === "not_found" || error.message.toLowerCase().includes("not found");
+}
 
 function sandboxName(userId: string) {
   const userHash = createHash("sha256").update(userId).digest("hex").slice(0, 22);
@@ -104,10 +117,20 @@ async function setupSandbox(sandbox: Sandbox) {
     "install",
     "chromium",
   ]);
+  await runChecked(sandbox, "cp", [
+    "instacart-agent/sandbox/cookie_auth.py",
+    "/vercel/sandbox/nutriplan_cookie_auth.py",
+  ]);
+  await runChecked(sandbox, "cp", [
+    "instacart-agent/sandbox/nutriplan.html",
+    "/vercel/sandbox/.novnc/nutriplan.html",
+  ]);
 
   const password = randomBytes(6).toString("base64url").slice(0, 8);
+  const viewerToken = randomBytes(32).toString("base64url");
   await sandbox.writeFiles([
     { path: VNC_PASSWORD_PATH, content: `${password}\n`, mode: 0o600 },
+    { path: VIEW_TOKEN_PATH, content: `${viewerToken}\n`, mode: 0o600 },
   ]);
   await runChecked(sandbox, "sh", [
     "-c",
@@ -151,7 +174,7 @@ async function ensureServices(sandbox: Sandbox) {
   if (!(await processIsRunning(sandbox, "[w]ebsockify.*6080"))) {
     await startDetached(
       sandbox,
-      "python3 -m websockify --web /vercel/sandbox/.novnc 6080 localhost:5999",
+      "env PYTHONPATH=/vercel/sandbox python3 -m websockify --file-only --web /vercel/sandbox/.novnc --auth-plugin nutriplan_cookie_auth.SessionCookieAuth --auth-source /vercel/sandbox/.nutriplan-view-token 6080 localhost:5999",
       "/tmp/nutriplan-novnc.log",
     );
   }
@@ -185,12 +208,27 @@ async function getUserSandbox(userId: string) {
     timeout: SESSION_TIMEOUT,
     resources: { vcpus: 2 },
     persistent: true,
-    keepLastSnapshots: { count: 1, expiration: 0, deleteEvicted: true },
+    snapshotExpiration: SAVED_SESSION_LIFETIME,
+    keepLastSnapshots: { count: 1, expiration: SAVED_SESSION_LIFETIME, deleteEvicted: true },
     tags: { feature: "instacart", version: SANDBOX_VERSION },
     onCreate: setupSandbox,
   });
+  await sandbox.updateNetworkPolicy({ allow: [...INSTACART_ALLOWED_DOMAINS] });
   await ensureServices(sandbox);
   return sandbox;
+}
+
+async function rotateViewerAuthorization(sandbox: Sandbox) {
+  const viewerToken = randomBytes(32).toString("base64url");
+  await sandbox.writeFiles([
+    { path: VIEW_TOKEN_PATH, content: `${viewerToken}\n`, mode: 0o600 },
+  ]);
+
+  if (await processIsRunning(sandbox, "[w]ebsockify.*6080")) {
+    await sandbox.runCommand("pkill", ["-f", "[w]ebsockify.*6080"]);
+    await ensureServices(sandbox);
+  }
+  return viewerToken;
 }
 
 async function callAgent<T>(
@@ -224,17 +262,19 @@ async function callAgent<T>(
 
 export async function openInstacartSession(userId: string) {
   const sandbox = await getUserSandbox(userId);
+  const viewerToken = await rotateViewerAuthorization(sandbox);
   await callAgent<{ ok: true }>(sandbox, "/open", "POST", undefined, 90_000);
 
   const passwordBuffer = await sandbox.readFileToBuffer({ path: VNC_PASSWORD_PATH });
   if (!passwordBuffer) throw new Error("The private browser password is unavailable.");
 
-  const liveUrl = new URL("/vnc.html", sandbox.domain(LIVE_VIEW_PORT));
-  liveUrl.searchParams.set("autoconnect", "true");
-  liveUrl.searchParams.set("resize", "remote");
-  liveUrl.searchParams.set("path", "websockify");
-  liveUrl.searchParams.set("password", passwordBuffer.toString("utf8").trim());
-  return { liveUrl: liveUrl.toString() };
+  return {
+    liveUrl: buildPrivateViewerUrl(
+      sandbox.domain(LIVE_VIEW_PORT),
+      viewerToken,
+      passwordBuffer.toString("utf8").trim(),
+    ),
+  };
 }
 
 export async function findInstacartStores(userId: string) {
@@ -259,7 +299,7 @@ export async function pauseInstacartSession(userId: string) {
     const sandbox = await Sandbox.get({ name: sandboxName(userId), resume: false });
     await sandbox.stop();
   } catch (error) {
-    if (!(error instanceof Error) || !error.message.toLowerCase().includes("not found")) throw error;
+    if (!isSandboxNotFound(error)) throw error;
   }
 }
 
@@ -268,6 +308,6 @@ export async function deleteInstacartSession(userId: string) {
     const sandbox = await Sandbox.get({ name: sandboxName(userId), resume: false });
     await sandbox.delete();
   } catch (error) {
-    if (!(error instanceof Error) || !error.message.toLowerCase().includes("not found")) throw error;
+    if (!isSandboxNotFound(error)) throw error;
   }
 }

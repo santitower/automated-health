@@ -160,7 +160,7 @@ export default function InstacartAgentPanel({ items }: { items: GroceryHandoff["
       {status === "idle" && (
         <div className="agent-setup">
           <strong>Nothing installs on this computer</strong>
-          <p>NutriPlan starts an isolated Playwright browser only when you need it. Sign into Instacart there once, then reuse that private session for later carts.</p>
+          <p>NutriPlan starts an isolated Playwright browser only when you need it. Its encrypted viewer uses a rotating key, pauses after five minutes, and keeps a saved Instacart session for no more than 24 hours.</p>
           <button className="agent-primary" type="button" onClick={startBrowser}>
             Start private Instacart browser →
           </button>
@@ -173,8 +173,8 @@ export default function InstacartAgentPanel({ items }: { items: GroceryHandoff["
 
       {status === "browser-open" && (
         <div className="agent-session">
-          <strong>Sign into Instacart in the private browser</strong>
-          <p>Set your delivery address there too. NutriPlan never receives your Instacart password or payment information.</p>
+          <strong>Sign in with your Instacart email and password</strong>
+          <p>Avoid Google or Apple sign-in so this browser never accesses a broader account. NutriPlan does not store or log what you type, and password saving is disabled. Set your delivery address there too.</p>
           <div className="agent-actions">
             <button className="agent-secondary" type="button" onClick={openLiveBrowser}>Reopen private browser ↗</button>
             <button className="agent-primary" type="button" onClick={loadStores}>I’m signed in · find my stores →</button>
@@ -248,7 +248,7 @@ export default function InstacartAgentPanel({ items }: { items: GroceryHandoff["
       {liveUrl && status !== "pausing" && (
         <button className="agent-disconnect" type="button" onClick={disconnectBrowser}>Disconnect and erase Instacart session</button>
       )}
-      <small className="agent-disclaimer">Playwright runs in an isolated browser session and pauses automatically. Always review product, size, quantity, price, and dietary fit. NutriPlan never checks out or enters payment.</small>
+      <small className="agent-disclaimer">Playwright runs in an isolated, access-controlled browser and pauses automatically. Disconnect and erase when you are finished. Always review product, size, quantity, price, and dietary fit. NutriPlan never checks out or enters payment.</small>
     </section>
   );
 }

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+    <title>Opening private Instacart browser</title>
+    <style>
+      :root { color-scheme: light; font-family: system-ui, sans-serif; }
+      body { align-items: center; background: #f4f8f1; color: #153f29; display: flex; justify-content: center; margin: 0; min-height: 100vh; }
+      main { max-width: 34rem; padding: 2rem; text-align: center; }
+      p { color: #53655b; line-height: 1.6; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Opening your private browser…</h1>
+      <p id="status">Authorizing this one browser window.</p>
+    </main>
+    <script>
+      (() => {
+        const secrets = new URLSearchParams(window.location.hash.slice(1));
+        const token = secrets.get("token");
+        const password = secrets.get("password");
+        window.history.replaceState(null, "", "/nutriplan.html");
+
+        if (!token || !password || !window.isSecureContext) {
+          document.getElementById("status").textContent = "This private-browser link is invalid or expired. Return to NutriPlan and start it again.";
+          return;
+        }
+
+        document.cookie = `__Host-nutriplan-view=${encodeURIComponent(token)}; Path=/; Secure; SameSite=Strict`;
+        const viewer = new URL("/vnc.html", window.location.origin);
+        viewer.hash = new URLSearchParams({
+          autoconnect: "true",
+          resize: "remote",
+          path: "websockify",
+          password,
+        }).toString();
+        window.location.replace(viewer);
+      })();
+    </script>
+  </body>
+</html>

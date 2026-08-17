@@ -4,7 +4,9 @@ This companion uses Playwright to add an approved NutriPlan grocery list to the 
 
 This companion was integrated from [cmedipally7/instacart-agent](https://github.com/cmedipally7/instacart-agent) and adapted for NutriPlan's authenticated, persistent application. The server, validation, tests, and cart-review safeguards are maintained here.
 
-In production, NutriPlan creates one persistent Vercel Sandbox per authenticated user and runs this agent inside it. The sandbox exposes a password-protected noVNC browser for the user’s Instacart login and cart review. Its controller still listens only on `127.0.0.1:4545`, so only NutriPlan’s server-side sandbox commands can reach it. Store URLs, item names, package quantities, request size, and concurrent runs are validated before Playwright is allowed to act.
+In production, NutriPlan creates one persistent Vercel Sandbox per authenticated user and runs this agent inside it. The sandbox exposes a noVNC browser whose WebSocket requires a rotating 256-bit, same-origin session cookie in addition to VNC authentication. Viewer secrets are passed only in the URL fragment, removed before the viewer loads, and never sent in an HTTP request URL. Its controller still listens only on `127.0.0.1:4545`, so only NutriPlan’s server-side sandbox commands can reach it. Store URLs, item names, package quantities, request size, and concurrent runs are validated before Playwright is allowed to act.
+
+Remote Chromium disables password saving, payment autofill, downloads, and sync. Sandbox egress is reduced to the Instacart domains and minimal CDN/challenge hosts needed for email/password login; advertising trackers and broader Google/Apple account login are intentionally unavailable. The VM pauses after five minutes, retains at most one filesystem snapshot for 24 hours, and can be deleted immediately with **Disconnect and erase**.
 
 No software is installed on the user’s computer. The sandbox pauses automatically and preserves its private Chromium profile for the next run. Disconnecting Instacart from NutriPlan deletes that sandbox and the saved profile.
 

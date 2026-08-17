@@ -1,12 +1,40 @@
 import { chromium } from "playwright";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
 const HOME_URL = "https://www.instacart.com";
-const PROFILE_DIR = process.env.INSTACART_AGENT_PROFILE_DIR
+const PROFILE_DIR = process.env.INSTACART_PROFILE_DIR
+  ?? process.env.INSTACART_AGENT_PROFILE_DIR
   ?? join(homedir(), ".nutriplan-instacart-chrome-profile");
 
 let contextPromise = null;
+
+async function hardenBrowserProfile() {
+  const defaultProfile = join(PROFILE_DIR, "Default");
+  const preferencesPath = join(defaultProfile, "Preferences");
+  await mkdir(defaultProfile, { recursive: true });
+
+  let preferences = {};
+  try {
+    preferences = JSON.parse(await readFile(preferencesPath, "utf8"));
+  } catch {
+    // Chromium creates this file on first launch.
+  }
+
+  preferences.credentials_enable_service = false;
+  preferences.payments_integration_enabled = false;
+  preferences.profile = {
+    ...(preferences.profile ?? {}),
+    password_manager_enabled: false,
+  };
+  preferences.autofill = {
+    ...(preferences.autofill ?? {}),
+    credit_card_enabled: false,
+    profile_enabled: false,
+  };
+  await writeFile(preferencesPath, JSON.stringify(preferences), { mode: 0o600 });
+}
 
 export function browserIsRunning() {
   return Boolean(contextPromise);
@@ -14,7 +42,15 @@ export function browserIsRunning() {
 
 export async function launchBrowser() {
   if (!contextPromise) {
+    await hardenBrowserProfile();
     const launchPromise = chromium.launchPersistentContext(PROFILE_DIR, {
+      acceptDownloads: false,
+      args: [
+        "--disable-save-password-bubble",
+        "--disable-password-generation",
+        "--disable-sync",
+        "--disable-features=AutofillServerCommunication,PasswordManagerOnboarding,PasswordImport",
+      ],
       headless: false,
       viewport: null,
     }).catch((error) => {
